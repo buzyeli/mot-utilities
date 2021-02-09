@@ -6,16 +6,23 @@ import sys
 import os
 import numpy
 import glob
-from mot_io import MotGt
+from mot_io import MotGt, MotDet
 
+COLOR_WHITE = (255, 255, 255)
+COLOR_BLACK = (0, 0, 0)
+COLOR_RED = (0, 0, 255)
+COLOR_GREEN = (0, 255, 0)
+COLOR_CYAN = (255, 255, 0)
 
 font                   = cv.FONT_HERSHEY_COMPLEX
 fontScale              = 0.4
-fontColor              = (255,255,255)
+fontColor              = COLOR_WHITE
 lineType               = 1
-shadowColor = (0,0,0)
+shadowColor = COLOR_BLACK
+
 
 def fit_coordinate_in_box(coord, lower_bound, upper_bound):
+    coord = int(coord)
     coord = lower_bound if coord < lower_bound else coord
     coord = upper_bound if coord > upper_bound else coord
     return coord
@@ -32,9 +39,13 @@ def main():
                         default=None,
                         help='Enter output folder paths to save bbox drawn images')
 
-    parser.add_argument('--gt-file', metavar='GTF', type=str,
+    parser.add_argument('--input-type', metavar='IT', type=str,
                         default=None,
-                        help='Enter the full path of the MOT ground-truth file')
+                        help='Either \"gt\" or \"det\"')
+
+    parser.add_argument('--input-file', metavar='GTF', type=str,
+                        default=None,
+                        help='Enter the full path of the MOT ground-truth or detection file')
 
 
     args = parser.parse_args()
@@ -44,9 +55,15 @@ def main():
     out_dir = Path(args.output_folder)
     if not os.path.exists(args.output_folder):
         os.makedirs(args.output_folder)
-    gt_file_path = Path(args.gt_file)
+    input_file_path = Path(args.input_file)
+    input_type = args.input_type
+    assert input_type in ["gt","det"], "Error: Input type should either be \"gt\" or \"det\"!"
 
-    mot_gt = MotGt(gt_file_path.__str__())
+    mot_container = None
+    if input_type == 'gt':
+        mot_container = MotGt(input_file_path.__str__())
+    else:
+        mot_container = MotDet(input_file_path.__str__())
 
     frame_counter = 0
 
@@ -60,26 +77,34 @@ def main():
         dims = img.shape
         frame_height, frame_width = dims[0], dims[1]
 
-        targets_to_draw = mot_gt.get_targets_in_frame(frame_id)
+        targets_to_draw = mot_container.get_objects_in_frame(frame_id)
 
         for target in targets_to_draw:
-            _, bbox, visibility = target.get_state_in_frame(frame_id)
+            _, bbox, visibility_or_conf_score = target.get_state_in_frame(frame_id)
             x1, y1, x2, y2 = bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]
             x1 = fit_coordinate_in_box(x1, 0, frame_width)
             x2 = fit_coordinate_in_box(x2, 0, frame_width)
             y1 = fit_coordinate_in_box(y1, 0, frame_height)
             y2 = fit_coordinate_in_box(y2, 0, frame_height)
 
-            box_color = (0, 0, 255) if target.activity == 0 else (0, 255, 0)
-            cv.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), box_color, 1)
+            if input_type == 'gt':
+                box_color = COLOR_RED if target.activity == 0 else COLOR_GREEN
+                label = "t:{}, v:{:4.3f}".format(target.type, visibility_or_conf_score)
+            else:
+                box_color = COLOR_CYAN
+                label = "c:{:4.3f}".format(visibility_or_conf_score)
 
-            cv.putText(img, "t:{}, v:{:4.3f}".format(target.type, visibility) ,
+            cv.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), box_color, 2)
+
+            # original label
+            cv.putText(img, label,
                        (x1, y1),
                        font,
                        fontScale,
                        shadowColor,
                        lineType)
-            cv.putText(img, "t:{}, v:{:4.3f}".format(target.type, visibility),
+            # shadow (to improve readability)
+            cv.putText(img, label,
                        (x1-1,y1-1),
                         font,
                         fontScale,
