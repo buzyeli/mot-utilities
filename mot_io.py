@@ -131,4 +131,5 @@ class MotDet:
 
                 last_frame_id = frame_id
                 tmp_bboxes.append(MotDetFormat(object_id, frame_id, [top_left_x, top_left_y, width, height], conf_score))
+            bboxes_in_frames.update({last_frame_id:tmp_bboxes}) # add last frame data after loop ends
         return bboxes_in_frames
