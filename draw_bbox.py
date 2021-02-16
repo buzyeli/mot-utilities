@@ -89,7 +89,7 @@ def main():
 
             if input_type == 'gt':
                 box_color = COLOR_RED if target.activity == 0 else COLOR_GREEN
-                label = "t:{}, v:{:4.3f}".format(target.type, visibility_or_conf_score)
+                label = "id:{}, t:{}, v:{:4.3f}".format(target.id, target.type, visibility_or_conf_score)
             else:
                 box_color = COLOR_CYAN
                 label = "c:{:4.3f}".format(visibility_or_conf_score)
